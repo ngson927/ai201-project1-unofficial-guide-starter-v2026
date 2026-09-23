@@ -154,14 +154,49 @@ distinguishes it from the eight other "When to go" sections in the corpus.
 <!-- One complete question and answer, pasted as text, with the source line
      visible. Milestone 4. -->
 
-**Question:**
+**Question:** Where is the nearest full hospital in the region?
 
 **Answer:**
 
 ```
+The documents disagree with each other regarding the location of the nearest
+full hospital:
+
+* guide_accessibility.md states that the nearest full hospital is in Marchwood.
+* guide_halden_bay.md, guide_kestrelford.md, guide_givens_mill.md, and
+  guide_brightwater.md all state that the nearest full hospital is in
+  Brightwater.
 ```
 
-**My relevance cutoff:**
+I picked this one rather than a clean answer because it is the question my
+corpus handles worst, and because the first version of it was wrong in a way
+that looked right. Before I tightened the grounding instruction, the same
+question returned:
+
+```
+The nearest full hospital is in Marchwood (guide_accessibility.md).
+```
+
+That answer is correct. It is also the answer I most wanted to catch. Four of
+the five chunks the model was given say Brightwater; it silently picked the one
+that did not and presented it as settled with a single citation. It was right
+because `guide_accessibility.md` happened to rank first, not because anything
+in the pipeline noticed the disagreement — and if the ranking had gone the
+other way it would have said Brightwater with exactly the same confidence.
+
+So I added a fourth rule to `GROUNDING_INSTRUCTION`: if the documents disagree,
+say so and name every document on each side, rather than quietly picking one.
+That is what produced the answer above. Re-running the other four test
+questions and two off-topic ones afterwards showed no change in their
+behaviour.
+
+**My relevance cutoff:** `THRESHOLD = 0.75` (raised from the starter's 0.6).
+
+**Top-k:** left at 5. All five test questions find their answer at rank 1, so
+retrieval would survive a smaller k — but the hospital question is the reason
+not to shrink it. At k=5 the model sees one chunk saying Marchwood and four
+saying Brightwater, which is what lets it report the disagreement at all. A
+smaller k would hide the conflict rather than resolve it.
 
 <!-- The number you set in config.py, and how you got there.
 
@@ -174,7 +209,85 @@ distinguishes it from the eight other "When to go" sections in the corpus.
 
 | Question | In corpus? | Best distance |
 |---|---|---|
-|  |  |  |
+| How often do the trams run in Marchwood on weekdays? | yes | 0.2189 |
+| What is the parking situation in Halden Bay on a summer weekend? | yes | 0.2648 |
+| How much does it cost to climb the church tower in Kestrelford? | yes | 0.4059 |
+| Where is the nearest full hospital in the region? | yes | 0.4073 |
+| When does the Kestrelford bakery sell out? | yes | 0.4161 |
+| What is the capital of Mongolia? | no | 0.8084 |
+| What is the recommended dosage of ibuprofen for a headache? | no | 0.8351 |
+| How do I write a for loop in Rust? | no | 0.8589 |
+| How do I change the oil in a diesel engine? | no | 0.8809 |
+| Who won the 1994 World Cup? | no | 0.9819 |
+
+Those ten rows show a gap so wide it is almost useless: 0.4161 to 0.8084, with
+nothing in between. Anywhere in that range satisfies criterion 3, and the
+starter's 0.6 sits comfortably inside it. If I had stopped here I would have
+kept 0.6 and learned nothing.
+
+The gap is that wide because all five `OUT_OF_SCOPE` questions come from
+completely different worlds — Mongolia, diesel engines, the World Cup. My five
+test questions are also easy: every one names a town or a specific thing, and
+none scored worse than 0.4161. Two unrepresentative groups produce a clean
+separation that will not survive contact with a real user.
+
+So I measured two more groups the milestone does not ask for.
+
+**Vaguer questions my documents do cover:**
+
+| Question | Best distance | Top result |
+|---|---|---|
+| what should I know before driving to the coast? | 0.4906 | `guide_halden_bay.md` |
+| where can I get fresh bread early in the morning? | 0.5189 | `guide_eating.md` |
+| somewhere quiet to go in winter? | 0.5523 | `guide_halden_bay.md` |
+| where do locals eat rather than tourists? | 0.6090 | `guide_eating.md` |
+| which places are difficult with a wheelchair? | 0.6394 | `guide_accessibility.md` |
+| is it hard to get around without a car? | 0.7219 | `guide_halden_bay.md` |
+
+Three of those sit above 0.6, and the top result for each is the right
+document — `guide_accessibility.md` for the wheelchair question is exactly
+where that answer lives. At the starter's cutoff all three are refused outright
+despite retrieval having done its job perfectly. That is the "too low" failure
+in the milestone's table, and it is invisible: the user sees a refusal and
+assumes the corpus has nothing.
+
+**Questions my documents don't cover, in the same vocabulary:**
+
+| Question | Best distance |
+|---|---|
+| how much does a hotel in Barcelona cost in August? | 0.5753 |
+| is the bus to Edinburgh cheaper than the train? | 0.5881 |
+| what are the opening hours of the Louvre? | 0.6035 |
+| how do I get from Paris to Lyon by train? | 0.6334 |
+| what is the best time to visit Tokyo? | 0.6427 |
+| where should I park at Heathrow airport? | 0.6432 |
+
+This is the finding that actually decided the number. These six **overlap
+completely** with the legitimate questions above. "is the bus to Edinburgh
+cheaper than the train?" (0.5881, should be refused) is *closer* than "where do
+locals eat rather than tourists?" (0.6090, should be answered). No threshold
+anywhere separates them. The gate cannot tell a travel question about my region
+from a travel question about somewhere else, because at the embedding level
+they are the same question.
+
+Given that, I picked 0.75 on an asymmetry rather than on a gap. **A wrong
+refusal is unrecoverable** — the gate fires before generation, the model never
+sees the chunks, and there is no second chance. **A wrong acceptance still has
+a second layer**, and I tested that it works: with the cutoff at 0.75 all six
+of those travel questions pass the gate, and the grounding instruction refuses
+every one of them anyway ("the provided documents do not mention Tokyo"). So
+the cost of admitting them is a wasted API call, while the cost of refusing the
+wheelchair question is a user who is told, wrongly, that the answer isn't
+there.
+
+**What I get wrong at 0.75.** Every one of those six travel questions reaches
+the model instead of being stopped by the gate, so I am paying six unnecessary
+calls to avoid three wrong refusals, and I am relying on the prompt to hold the
+line where the gate cannot. If the model ever stops refusing them, nothing else
+catches it. 0.75 also leaves only 0.058 of margin below the nearest
+out-of-scope question (0.8084), so criterion 3 passes 5 of 5 but not by much —
+one off-topic question phrased in regional-travel language would likely get
+through the gate.
 
 ## How I Used AI
 
