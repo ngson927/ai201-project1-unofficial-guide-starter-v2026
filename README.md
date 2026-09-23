@@ -1,6 +1,6 @@
 # The Unofficial Guide
 
-**TODO — PUT YOUR NAME HERE BEFORE SUBMITTING.** Corpus: `city_guides`.
+**Son Nguyen.** Corpus: `city_guides`.
 
 > **This file is your submission.** Fill it in as you go — most sections get
 > written during the milestone that produces them, not at the end.
@@ -305,9 +305,9 @@ through the gate.
 <!-- Two specific moments. For each: what you asked for, what came back, and
      what you changed about it.
 
-     "I asked Claude to write the chunking function from my notes. It ignored
-     the overlap, so I added that myself" is the level of detail we're after.
-     "I used AI to help me code" is not.
+1. I used AI to help explain unfamiliar concepts and clarify project requirements. I reviewed the explanations and applied the parts that were relevant to my project.
+
+2. I also used AI to help troubleshoot issues and suggest possible approaches while working on the project. I tested the suggestions myself and made changes based on my own results.
 
      Milestone 5. -->
 
