@@ -1,6 +1,6 @@
 # The Unofficial Guide
 
-<!-- Replace this line with your name and which corpus you picked. -->
+**TODO — PUT YOUR NAME HERE BEFORE SUBMITTING.** Corpus: `city_guides`.
 
 > **This file is your submission.** Fill it in as you go — most sections get
 > written during the milestone that produces them, not at the end.
@@ -21,11 +21,21 @@
 
 ## What This Does
 
-<!-- Three or four sentences. Which corpus you picked, and the kinds of
-     questions your system answers. Write it for someone who has never seen
-     this repo.
+This is a question-answering system over `city_guides`, a set of 14 travel
+guides for an invented region — nine towns plus five guides that cut across
+them on transport, eating, walking, seasons and accessibility. You ask it
+something in plain English, it finds the passages most likely to contain the
+answer, and it answers from those passages while naming the file each fact
+came from.
 
-     Milestone 5. -->
+It handles specific questions well: when the Kestrelford bakery sells out, how
+often Marchwood's trams run, what parking in Halden Bay is like on a summer
+weekend. It also handles the case where the guides contradict each other —
+nine of the fourteen carry a copy-pasted note saying the nearest hospital is in
+Brightwater, which is wrong, and the system reports the disagreement rather
+than picking a side. When a question falls outside the guides entirely, a
+relevance check stops it before it reaches the model and it says so instead of
+inventing an answer.
 
 ## Chunking Strategy
 
@@ -300,9 +310,60 @@ through the gate.
 
      Milestone 5. -->
 
-**1.**
+**Scope first, since it affects how the rest of this should be read.** I used
+Claude heavily on this project — it wrote the chunker, the five test questions,
+the reasons under the acceptance criteria, and most of this README. I chose the
+corpus, and I chose the targets for criteria 4 and 5 from options it laid out.
+Both moments below are cases where what came back was wrong and had to be
+changed, which is the part I want on the record, but I am not going to describe
+this as light-touch assistance when it wasn't.
 
-**2.**
+**1. It stated something about my own code that turned out to be false.**
+
+While writing the reason under criterion 2 ("every answer names at least one
+source document"), I asked why five of five was a fair target rather than four.
+Claude's answer was that source attribution is appended by `generate.py` from a
+template, so a miss would mean the code was broken rather than the model
+misbehaving. That is a clean justification and I nearly kept it.
+
+It is also wrong. `generate.py` has no such template. `build_prompt` ends with
+the instruction "name the file you used", so the citation inside an answer is
+written by the model and can be omitted. The only thing my code generates is
+the separate `Sources retrieved:` line that `app.py` prints. I rewrote the
+reason to say that, and it exposed a real defect in the criterion: read
+literally, the sentence counts the code-printed line, which is always there, so
+the criterion cannot fail. The fix is three words — "in the answer text
+itself" — and I have left it unfixed on purpose so the original stands for
+unit 2.
+
+**2. It accepted a clean result that was clean for the wrong reason.**
+
+Milestone 4 asks for the best distance on five in-corpus questions and five
+out-of-scope ones, and mine separated perfectly: 0.4161 to 0.8084 with nothing
+in between. Claude's first read was that 0.6 sits inside the gap and is fine.
+
+I pushed on why the gap was so wide, and the answer was that both groups are
+unrepresentative — the `OUT_OF_SCOPE` questions are about Mongolia and diesel
+engines, and my five test questions all name a town outright. So we measured
+two groups the milestone does not ask for: vaguer questions the guides do cover,
+and travel questions about places they don't. Those two overlap completely,
+0.575 to 0.643 against 0.609 to 0.722. "is the bus to Edinburgh cheaper than
+the train?" scores closer than "where do locals eat rather than tourists?"
+
+That killed the original reasoning. There is no gap to put a number in, so
+0.75 is chosen on an asymmetry instead — a wrong refusal is unrecoverable
+because the gate runs before generation, while a wrong acceptance still meets
+the grounding instruction, which I tested and which refuses all six travel
+questions anyway. The number in `config.py` came out of that second round of
+testing, not the first.
+
+**Also worth recording: two of its predictions were wrong.** It wrote in
+`criteria.md` that the hospital question would fail retrieval, because nine
+chunks carry the wrong claim and one carries the right one. When I ran it,
+`guide_accessibility.md` came back ranked first and criterion 1 passed five of
+five rather than the four I had targeted. The prediction was wrong, but
+criterion 5 caught a subtler version of the same problem anyway — see **Sample
+Answer** above.
 
 <!-- ── Stretch features ─────────────────────────────────────────────────────
      Doing one? Say so here BEFORE you start. A feature this README never
