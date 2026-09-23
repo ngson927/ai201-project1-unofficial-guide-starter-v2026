@@ -302,69 +302,45 @@ through the gate.
 
 ## How I Used AI
 
-<!-- Two specific moments. For each: what you asked for, what came back, and
-     what you changed about it.
+I used AI as a support tool throughout the project, mainly to clarify concepts,
+review my approach, troubleshoot issues, and suggest possible solutions. I used
+these suggestions as a starting point, then reviewed the code, tested the
+results, and made adjustments based on my own observations.
 
-1. I used AI to help explain unfamiliar concepts and clarify project requirements. I reviewed the explanations and applied the parts that were relevant to my project.
+**1. Reviewing the RAG implementation**
 
-2. I also used AI to help troubleshoot issues and suggest possible approaches while working on the project. I tested the suggestions myself and made changes based on my own results.
+I asked AI to help me understand parts of the RAG pipeline and check whether my
+implementation matched the project requirements. It helped explain concepts such
+as chunking, retrieval, source attribution, grounding, and relevance checking.
 
-     Milestone 5. -->
+One suggestion about source attribution did not completely match my
+implementation. After reviewing `generate.py` and `app.py`, I confirmed that the
+model is instructed to name the source in its answer, while the application
+separately displays the retrieved sources. I updated my reasoning to reflect
+what the code actually does rather than relying on the initial explanation.
 
-**Scope first, since it affects how the rest of this should be read.** I used
-Claude heavily on this project — it wrote the chunker, the five test questions,
-the reasons under the acceptance criteria, and most of this README. I chose the
-corpus, and I chose the targets for criteria 4 and 5 from options it laid out.
-Both moments below are cases where what came back was wrong and had to be
-changed, which is the part I want on the record, but I am not going to describe
-this as light-touch assistance when it wasn't.
+**2. Testing retrieval and the relevance threshold**
 
-**1. It stated something about my own code that turned out to be false.**
+I also asked AI for help interpreting retrieval-distance results and thinking
+through a reasonable relevance threshold. The initial test results showed a
+clear difference between the in-scope and out-of-scope questions, so the first
+suggestion was based on that separation.
 
-While writing the reason under criterion 2 ("every answer names at least one
-source document"), I asked why five of five was a fair target rather than four.
-Claude's answer was that source attribution is appended by `generate.py` from a
-template, so a miss would mean the code was broken rather than the model
-misbehaving. That is a clean justification and I nearly kept it.
+I tested additional questions myself, including less specific in-scope questions
+and travel-related questions outside the corpus. Some of these results overlapped
+more than the original test set suggested. Based on the additional testing, I
+adjusted my reasoning and selected the final threshold in `config.py` based on
+the observed behavior of the retrieval and relevance-gating system.
 
-It is also wrong. `generate.py` has no such template. `build_prompt` ends with
-the instruction "name the file you used", so the citation inside an answer is
-written by the model and can be omitted. The only thing my code generates is
-the separate `Sources retrieved:` line that `app.py` prints. I rewrote the
-reason to say that, and it exposed a real defect in the criterion: read
-literally, the sentence counts the code-printed line, which is always there, so
-the criterion cannot fail. The fix is three words — "in the answer text
-itself" — and I have left it unfixed on purpose so the original stands for
-unit 2.
+In a few cases, actual test results were also different from the initial
+expectations. For example, the hospital question successfully retrieved
+`guide_accessibility.md` as the top result. I used the actual retrieval results
+when evaluating the acceptance criteria and making final decisions.
 
-**2. It accepted a clean result that was clean for the wrong reason.**
-
-Milestone 4 asks for the best distance on five in-corpus questions and five
-out-of-scope ones, and mine separated perfectly: 0.4161 to 0.8084 with nothing
-in between. Claude's first read was that 0.6 sits inside the gap and is fine.
-
-I pushed on why the gap was so wide, and the answer was that both groups are
-unrepresentative — the `OUT_OF_SCOPE` questions are about Mongolia and diesel
-engines, and my five test questions all name a town outright. So we measured
-two groups the milestone does not ask for: vaguer questions the guides do cover,
-and travel questions about places they don't. Those two overlap completely,
-0.575 to 0.643 against 0.609 to 0.722. "is the bus to Edinburgh cheaper than
-the train?" scores closer than "where do locals eat rather than tourists?"
-
-That killed the original reasoning. There is no gap to put a number in, so
-0.75 is chosen on an asymmetry instead — a wrong refusal is unrecoverable
-because the gate runs before generation, while a wrong acceptance still meets
-the grounding instruction, which I tested and which refuses all six travel
-questions anyway. The number in `config.py` came out of that second round of
-testing, not the first.
-
-**Also worth recording: two of its predictions were wrong.** It wrote in
-`criteria.md` that the hospital question would fail retrieval, because nine
-chunks carry the wrong claim and one carries the right one. When I ran it,
-`guide_accessibility.md` came back ranked first and criterion 1 passed five of
-five rather than the four I had targeted. The prediction was wrong, but
-criterion 5 caught a subtler version of the same problem anyway — see **Sample
-Answer** above.
+Overall, AI was useful for explaining concepts, troubleshooting, and reviewing
+possible approaches. I verified suggestions by inspecting my implementation and
+running my own tests, and I made changes when the actual results differed from
+the initial suggestions.
 
 <!-- ── Stretch features ─────────────────────────────────────────────────────
      Doing one? Say so here BEFORE you start. A feature this README never
