@@ -42,6 +42,7 @@ inventing an answer.
 **Chunk size:** no fixed size — one chunk per `##` section, with `CHUNK_SIZE`
 (800) acting as a ceiling rather than a window. Result: 94 chunks, 318
 characters on average, shortest 172, longest 758.
+
 **Overlap:** none. `CHUNK_OVERLAP` is still used by `fallback_split` but my
 chunker ignores it.
 
