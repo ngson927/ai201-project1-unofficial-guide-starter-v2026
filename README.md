@@ -29,8 +29,46 @@
 
 ## Chunking Strategy
 
-**Chunk size:**
-**Overlap:**
+**Chunk size:** no fixed size — one chunk per `##` section, with `CHUNK_SIZE`
+(800) acting as a ceiling rather than a window. Result: 94 chunks, 318
+characters on average, shortest 172, longest 758.
+**Overlap:** none. `CHUNK_OVERLAP` is still used by `fallback_split` but my
+chunker ignores it.
+
+The corpus is 14 long guides already carved into labelled sections — "Getting
+there", "Eat and drink", "When to go". I counted 98 of these sections: median
+284 characters, 90th percentile 440, longest 711. **Every one of them already
+fit inside the starter's 800-character window.** So the fixed-window chunker
+wasn't splitting because sections were too big. It was splitting blindly, at
+offsets that had nothing to do with the document, and cutting through
+boundaries that were already there. Measured on the baseline: 35 of 51 chunks
+started mid-sentence, 42 of 51 held pieces of two or more unrelated sections,
+and the shortest chunk was 24 characters — `'d Sundays and after 5pm.'`
+
+Splitting at the headings instead takes mid-sentence starts to 0 of 94 and
+multi-section chunks to 0 of 94. Overlap then stops earning its keep: overlap
+exists to soften the damage when a fixed window severs a thought at an
+arbitrary point, and if you split on real boundaries there is no arbitrary
+point to soften.
+
+The change that mattered more than the size, though, was context. A section
+body almost never names its own town — six of the seven sections in
+`guide_kestrelford.md` never contain the word "Kestrelford". The chunk holding
+the bakery fact had nothing in it for "when does the Kestrelford bakery sell
+out?" to match on. So every chunk is prefixed with its document title and
+heading (`Kestrelford — Eat and drink`), which puts the town and the topic into
+the text that actually gets embedded. All 8 Kestrelford chunks now name the
+town; that question now retrieves the right chunk at distance 0.416 and
+answers correctly.
+
+Two things I did not fix. Sections shorter than 120 characters are merged
+forward into the next one, because a bare heading with nothing under it is not
+worth retrieving — but that threshold is a guess from the size distribution
+(the smallest real section is 174 characters), not something I tested. And the
+9 documents that repeat the same "Practical notes" boilerplate still produce 9
+near-identical chunks, one of which contradicts `guide_accessibility.md` about
+where the nearest hospital is. Chunking can't fix that; it's a corpus problem,
+and it's what I expect to fail in unit 2.
 
 <!-- What about YOUR documents made you pick these numbers? Short posts and
      long sectioned guides don't want the same chunking, and "800 seemed
@@ -53,30 +91,63 @@
 
      Milestone 3. -->
 
-**Chunk 1** — source: `` — produced by: ``
+**Chunk 1** — source: `guide_accessibility.md#0` — produced by: `chunker.py::split_documents`
 
 ```
+Getting around the region with limited mobility
+
+An honest assessment rather than a promotional one. Some of these places are
+difficult and it is better to know in advance.
 ```
 
-**Chunk 2** — source: `` — produced by: ``
+This is the weakest of the five and I'm keeping it in rather than cherry-picking
+around it. It's a document preamble, so it has a title but no `##` heading, and
+on its own it answers nothing — it tells you a guide exists, not what's in it.
+Every other chunk in the corpus is a real section.
+
+**Chunk 2** — source: `guide_corry_vale.md#5` — produced by: `chunker.py::split_documents`
 
 ```
+Corry Vale — Where to stay
+
+Perhaps thirty beds in the entire valley, spread across two pubs and a handful of farmhouse rooms. In summer these are booked months ahead. Camping is permitted on two marked fields and nowhere else.
 ```
 
-**Chunk 3** — source: `` — produced by: ``
+Answers "where can I stay in Corry Vale?" on its own, including the number of
+beds and the camping rule.
+
+**Chunk 3** — source: `guide_givens_mill.md#2` — produced by: `chunker.py::split_documents`
 
 ```
+Givens Mill — Getting around
+
+Everything is on one street along the river. The mill is at one end and the church at the other, eight minutes apart. The riverside path continues in both directions for as far as you want to walk.
 ```
 
-**Chunk 4** — source: `` — produced by: ``
+Without the prefix this would be three sentences about an unnamed village. The
+body never says "Givens Mill".
+
+**Chunk 4** — source: `guide_kestrelford.md#4` — produced by: `chunker.py::split_documents`
 
 ```
+Kestrelford — What to see
+
+The market square on a Saturday morning is the main event and has run continuously since the 1400s. The parish church has a 13th-century tower you can climb for £2. The old trackbed walk runs six miles to the next village along an easy gradient and is the best half-day here.
 ```
 
-**Chunk 5** — source: `` — produced by: ``
+Three distinct facts with hard numbers — £2, six miles, the 1400s — and it can
+answer a question about any of them alone.
+
+**Chunk 5** — source: `guide_pellew_sands.md#6` — produced by: `chunker.py::split_documents`
 
 ```
+Pellew Sands — When to go
+
+June and September for the beach without the crowds. July and August are busy and the town is at its most itself, for better and worse. Winter is bleak, largely closed, and has a following among people who like that sort of thing.
 ```
+
+Answers "when should I visit Pellew Sands?" completely, and the prefix is what
+distinguishes it from the eight other "When to go" sections in the corpus.
 
 ## Sample Answer
 
