@@ -22,12 +22,38 @@ names a target of "4 of 5", and four of three is not a thing.
 """
 
 QUESTIONS = [
-    # {"question": "...", "expects": "..."},
-    {"question": "", "expects": ""},
-    {"question": "", "expects": ""},
-    {"question": "", "expects": ""},
-    {"question": "", "expects": ""},
-    {"question": "", "expects": ""},
+    # Every `expects` string below appears verbatim in the corpus, so a
+    # substring scorer will not mark a correct answer wrong on a paraphrase.
+
+    # Single fact, stated in two documents (guide_kestrelford, guide_eating).
+    {
+        "question": "When does the Kestrelford bakery sell out?",
+        "expects": "11am",
+    },
+    # Single fact in one document only — the narrowest question here.
+    {
+        "question": "How much does it cost to climb the church tower in Kestrelford?",
+        "expects": "£2",
+    },
+    # Stated in guide_marchwood and again in guide_accessibility.
+    {
+        "question": "How often do the trams run in Marchwood on weekdays?",
+        "expects": "8 minutes",
+    },
+    # The answer is spread across a section rather than sitting in one
+    # sentence: the lots, the time they fill, and the overflow walk.
+    {
+        "question": "What is the parking situation in Halden Bay on a summer weekend?",
+        "expects": "10am",
+    },
+    # Deliberately the hard one. Nine documents repeat a boilerplate block
+    # saying the nearest full hospital is in Brightwater; only
+    # guide_accessibility.md says Marchwood, and it is the one that is right.
+    # I expect this to fail, and I would rather find that out than not ask.
+    {
+        "question": "Where is the nearest full hospital in the region?",
+        "expects": "Marchwood",
+    },
 ]
 
 # Questions from a different world entirely. Your gate should refuse all five.
