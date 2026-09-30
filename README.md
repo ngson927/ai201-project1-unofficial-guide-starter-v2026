@@ -648,25 +648,128 @@ model directly, and I have never run it.
 
 ## The Improvement
 
-**What I changed:**
+**What I changed:** One thing. `gate.py` now runs a second test alongside the
+distance check: `gate.unknown_proper_nouns` refuses a question that contains a
+capitalised word appearing nowhere in the corpus. The four places that call
+`gate.check` now pass the question text through so it can see it. Nothing else
+moved — same chunker, same embedding, same threshold of 0.75, same top-k,
+same grounding prompt.
 
-**Why I picked it:**
+**Why I picked it:** My diagnosis was that the embedding scores a question by
+its frame and almost ignores the entity in it, so the fix checks the entity
+directly — which is the one thing distance provably cannot do here, because
+legitimate vague questions (0.609–0.722) and off-topic travel questions
+(0.575–0.643) overlap.
 
-<!-- Connect it to a specific diagnosis above in one sentence. If you can't,
-     you picked a fix because it sounded impressive. -->
+**Why I did not pick hybrid search,** which was the recommended default and
+which I started on first. My diagnosis says the problem is that proper nouns
+carry no weight, so BM25 looked like the obvious answer. I measured it before
+building it, and it does not separate the groups either:
+
+| Question | BM25 max score |
+|---|---|
+| How much does it cost to climb the church tower in Kestrelford? | 15.49 |
+| **is the bus to Edinburgh cheaper than the train?** | **13.28** |
+| What is the parking situation in Halden Bay on a summer weekend? | 13.41 |
+| When does the Kestrelford bakery sell out? | 11.04 |
+| which places are difficult with a wheelchair? | 7.62 |
+
+The Edinburgh question outscores four of my five real test questions. BM25
+gives an unseen term an IDF contribution of zero — it *ignores* "Edinburgh"
+rather than penalising it — so the score comes entirely from "bus", "cheaper"
+and "train", which are ordinary corpus vocabulary. Adding it would have been
+picking a fix because it sounded impressive.
+
+I also tested a middle option, the fraction of a question's content words
+present in the corpus. That fails for the same reason in a different costume:
+"Tokyo" scores 0.75 coverage and so does "When does the Kestrelford bakery
+**sell** out?", because "sell" happens not to appear either. The count of
+missing words carries no signal; which word is missing does.
 
 ### Run Log — After
 
 <!-- Same format, same five criteria, three runs each.
      `python run_eval.py --label after` -->
 
+Raw data: `results/run_2026-09-30_0023_after.md`, produced by
+`run_eval.py::main`. 15 model calls, caching off.
+
 | Criterion | Target | Run 1 | Run 2 | Run 3 | Verdict |
 |---|---|---|---|---|---|
-| 1. Retrieved chunk contains the answer | 4 of 5 |  |  |  |  |
-| 2. Every answer names a source | 5 of 5 |  |  |  |  |
-| 3. Gate stops out-of-corpus questions | 4 of 5 |  |  |  |  |
-| 4. | | | | | |
-| 5. | | | | | |
+| 1. Retrieved chunk contains the answer | 4 of 5 | 5/5 | 5/5 | 5/5 | MET |
+| 2. Every answer names a source | 5 of 5 | 5/5 | 5/5 | 5/5 | MET |
+| 3. Gate stops out-of-corpus questions | 4 of 5 | 5/5 | 5/5 | 5/5 | MET |
+| 4. Chunks stand on their own | 4 of 5 | 4/5 | 4/5 | 4/5 | MET |
+| 5. Contradictions surfaced | names >1 source or refuses | yes | yes | yes | MET |
+
+### Before and after, side by side
+
+The five criteria as originally written cannot show this change at all —
+every one of them was already MET, and all five are still MET. The row that
+moves is criterion 3 **as revised in unit 2**, which is the only real miss I
+had:
+
+| Criterion | Target | Before | After | Verdict |
+|---|---|---|---|---|
+| 1. Retrieved chunk contains the answer | 4 of 5 | 5/5 | 5/5 | MET → MET |
+| 2. Every answer names a source (revised: in answer body) | 5 of 5 | 15/15 | 15/15 | MET → MET |
+| 3. Gate stops out-of-corpus questions (original set) | 4 of 5 | 5/5 | 5/5 | MET → MET |
+| **3r. Gate stops out-of-corpus questions (revised set)** | **4 of 6** | **0/6** | **6/6** | **MISSED → MET** |
+| 4. Chunks stand on their own (original fixed sample) | 4 of 5 | 4/5 | 4/5 | MET → MET |
+| 4r. Chunks stand on their own (revised: 10 random) | 8 of 10 | 9/10 | 9/10 | MET → MET |
+| 5. Contradictions surfaced | >1 source or refuse | 3/3 | 3/3 | MET → MET |
+
+**Did it help? Yes, and I can say how I know.** The six travel questions that
+every previous version of this system answered — or rather, passed to the model
+and relied on the prompt to decline — are now stopped by the gate, and the
+distances show why they could not have been stopped by tuning:
+
+```
+REFUSED  0.575  ['Barcelona']       how much does a hotel in Barcelona cost in August?
+REFUSED  0.588  ['Edinburgh']       is the bus to Edinburgh cheaper than the train?
+REFUSED  0.604  ['Louvre']          what are the opening hours of the Louvre?
+REFUSED  0.633  ['Paris', 'Lyon']   how do I get from Paris to Lyon by train?
+REFUSED  0.643  ['Tokyo']           what is the best time to visit Tokyo?
+REFUSED  0.643  ['Heathrow']        where should I park at Heathrow airport?
+-> 6/6
+```
+
+Every one of those is *under* the 0.75 cutoff and would still be under any
+cutoff that keeps my own questions working. They are refused on the second
+test, not the first.
+
+**The check that matters more than the improvement** is that nothing else
+broke. The six legitimate vague questions that motivated raising the threshold
+to 0.75 in unit 1 all still pass:
+
+```
+allowed  0.491  []  what should I know before driving to the coast?
+allowed  0.519  []  where can I get fresh bread early in the morning?
+allowed  0.552  []  somewhere quiet to go in winter?
+allowed  0.609  []  where do locals eat rather than tourists?
+allowed  0.639  []  which places are difficult with a wheelchair?
+allowed  0.722  []  is it hard to get around without a car?
+-> 6/6
+```
+
+A refusal filter that refuses more is trivial to build; this one costs nothing
+on the questions the corpus can answer, including three that sit above the old
+0.6 cutoff.
+
+**What it does not fix.** Two of the five original `OUT_OF_SCOPE` questions —
+the diesel engine and the ibuprofen one — contain no proper noun at all, so the
+new test is blind to them. They are still refused, but by distance (0.881 and
+0.835), exactly as before. The two tests cover different failures and neither
+covers both: distance catches a foreign subject, the proper-noun check catches
+a familiar frame around an absent entity. A question that is off-topic, has no
+capitalised name, and happens to borrow my corpus's phrasing would pass both,
+and I have not constructed one to see.
+
+It is also defeated by word order. `unknown_proper_nouns` skips the first word
+because sentence position capitalises it, so "Tokyo in November, what is it
+like?" slips through. I chose that trade deliberately rather than lowercasing
+the first word and losing every question that legitimately opens with a town
+name, but it is a real hole and it is in the docstring.
 
 **Did it help?**
 
