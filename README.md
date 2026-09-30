@@ -367,17 +367,134 @@ the initial suggestions.
 
      Milestone 1. -->
 
+Raw data: `results/run_2026-09-29_2345_before.md`, produced by
+`run_eval.py::main`. 15 model calls with caching off, so these are three real
+passes rather than one answer shown three times.
+
 | Criterion | Target | Run 1 | Run 2 | Run 3 | Verdict |
 |---|---|---|---|---|---|
-| 1. Retrieved chunk contains the answer | 4 of 5 |  |  |  |  |
-| 2. Every answer names a source | 5 of 5 |  |  |  |  |
-| 3. Gate stops out-of-corpus questions | 4 of 5 |  |  |  |  |
-| 4. | | | | | |
-| 5. | | | | | |
+| 1. Retrieved chunk contains the answer | 4 of 5 | 5/5 | 5/5 | 5/5 | MET |
+| 2. Every answer names a source | 5 of 5 | 5/5 | 5/5 | 5/5 | MET |
+| 3. Gate stops out-of-corpus questions | 4 of 5 | 5/5 | 5/5 | 5/5 | MET |
+| 4. Chunks stand on their own | 4 of 5 | 4/5 | 4/5 | 4/5 | MET |
+| 5. Contradictions surfaced, not resolved silently | names >1 source or refuses | yes | yes | yes | MET |
+
+**Why three criteria give identical columns.** Criteria 1, 3 and 4 do not
+depend on the generated answer. Retrieval is deterministic, the gate is a
+comparison against a fixed number, and `app.py chunks -n 5` samples the same
+five chunks every time — I ran it three times to check. One measurement is the
+whole measurement for those, and it goes in all three columns.
+
+Criteria 2 and 5 do depend on the model, and the raw output confirms generation
+really was varying: the Halden Bay parking answer is worded differently in all
+three runs, and the hospital answer reorders its list. What did not vary was
+whether a source was named or whether the disagreement was reported — which is
+the thing being measured.
+
+**Criterion 1 was measured strictly.** Rather than checking that the right
+*file* came back, I checked that the `expects` string itself appears inside one
+of the five retrieved chunks:
+
+| Question | expects | Found in |
+|---|---|---|
+| When does the Kestrelford bakery sell out? | `11am` | `guide_kestrelford.md` |
+| How much does it cost to climb the church tower in Kestrelford? | `£2` | `guide_kestrelford.md` |
+| How often do the trams run in Marchwood on weekdays? | `8 minutes` | `guide_marchwood.md` |
+| What is the parking situation in Halden Bay on a summer weekend? | `10am` | `guide_halden_bay.md` |
+| Where is the nearest full hospital in the region? | `Marchwood` | `guide_accessibility.md` |
+
+That is 5 of 5 against a target of 4 of 5. Last unit I predicted the hospital
+question would be the one to fail, because nine chunks carry the wrong claim
+and one carries the right one. It ranked first anyway, at distance 0.4073.
 
 <!-- Underneath, paste the REAL output for each criterion from one of your
      runs — the actual text your system produced, not a description of it.
      Name the file and function that produced it. -->
+
+### Real output
+
+All answer text below is from run 1 unless marked otherwise, copied from
+`results/run_2026-09-29_2345_before.md`. Answers produced by
+`generate.py::answer_from_chunks`; retrieval by `store.py::search` over chunks
+from `chunker.py::split_documents`; the gate by `gate.py::check`.
+
+**Criterion 1 — retrieved chunk contains the answer.** The chunk that carried
+the answer for the hospital question — `guide_accessibility.md#4`, produced by
+`chunker.py::split_documents`, retrieved at distance 0.4073 by
+`store.py::search`:
+
+```
+Getting around the region with limited mobility — Practical
+
+The nearest full hospital is in Marchwood. Brightwater has a hospital;
+Kestrelford, Halden Bay, Corry Vale, Givens Mill and Elder Ness have minor
+injuries units with limited hours or nothing at all.
+
+Mobile coverage is good in the town centres and patchy on the outskirts, and
+genuinely absent in parts of Corry Vale.
+```
+
+**Criterion 2 — every answer names a source.** Two of the five, showing the
+citation inside the answer text rather than the separate `Sources retrieved:`
+line that `app.py` prints:
+
+```
+The Kestrelford bakery sells out by 11am (guide_kestrelford.md).
+```
+
+```
+It costs £2 to climb the church tower in Kestrelford (guide_kestrelford.md).
+```
+
+**Criterion 3 — the gate stops out-of-corpus questions.** Produced by
+`run_eval.py::check_out_of_scope` at cutoff 0.75:
+
+```
+| What is the capital of Mongolia?                            | 0.808 | refused |
+| How do I change the oil in a diesel engine?                 | 0.881 | refused |
+| Who won the 1994 World Cup?                                 | 0.982 | refused |
+| What is the recommended dosage of ibuprofen for a headache? | 0.835 | refused |
+| How do I write a for loop in Rust?                          | 0.859 | refused |
+-> gate refused 5 of 5
+```
+
+**Criterion 4 — chunks stand on their own.** The five sampled by
+`app.py chunks -n 5`, produced by `chunker.py::split_documents`. Four answer a
+question unaided; the first does not:
+
+```
+Getting around the region with limited mobility
+
+An honest assessment rather than a promotional one. Some of these places are
+difficult and it is better to know in advance.
+```
+
+That is the preamble chunk — the text above a guide's first `##` heading. It
+tells you a guide exists and nothing more, so I scored it a fail. Compare
+`guide_pellew_sands.md#6` from the same sample, which answers "when should I
+visit Pellew Sands?" by itself:
+
+```
+Pellew Sands — When to go
+
+June and September for the beach without the crowds. July and August are busy and the town is at its most itself, for better and worse. Winter is bleak, largely closed, and has a following among people who like that sort of thing.
+```
+
+**Criterion 5 — contradictions surfaced.** Run 1 and run 3 of the hospital
+question, showing that the wording moved but the behaviour did not:
+
+```
+The documents disagree on the location of the nearest full hospital:
+- According to `guide_accessibility.md`, the nearest full hospital is in Marchwood.
+- According to `guide_halden_bay.md`, `guide_kestrelford.md`, `guide_givens_mill.md`, and `guide_brightwater.md`, the nearest full hospital is in Brightwater.
+```
+
+```
+The documents disagree on the location of the nearest full hospital:
+
+* `guide_accessibility.md` states that the nearest full hospital is in Marchwood.
+* `guide_halden_bay.md`, `guide_kestrelford.md`, `guide_givens_mill.md`, and `guide_brightwater.md` all state that the nearest full hospital is in Brightwater.
+```
 
 ## Verdicts
 
