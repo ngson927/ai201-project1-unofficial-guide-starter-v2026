@@ -342,6 +342,36 @@ possible approaches. I verified suggestions by inspecting my implementation and
 running my own tests, and I made changes when the actual results differed from
 the initial suggestions.
 
+**3. Looking for a pattern across the failures (unit 2)**
+
+After running the tests I had six off-topic questions passing the gate and no
+clear idea whether that was six problems or one. I asked AI to help me think
+through what they had in common. The suggestion was to hold the question
+wording fixed and change only the place name, which turned it into something I
+could measure rather than guess at.
+
+The results made the pattern obvious: in-corpus place names scored 0.226 to
+0.327 and foreign ones scored 0.606 to 0.643 regardless of which city I used,
+including one I picked specifically because no travel guide would mention it.
+That told me the embedding was matching the shape of the question rather than
+its subject, and that the six failures were one mechanism rather than six.
+
+**4. Checking a suggested fix before building it (unit 2)**
+
+Hybrid search with BM25 was suggested as the standard fix for this kind of
+problem, and it was also the option my course materials recommended. Before
+building it I measured the BM25 scores on my own questions, and the results did
+not support it — an off-topic question about Edinburgh scored 13.28, higher
+than four of my five real test questions, because the words "bus", "cheaper"
+and "train" are ordinary vocabulary in my corpus and the unfamiliar place name
+contributed nothing.
+
+I dropped that approach and used the measurement to pick a different one: a
+check for capitalised words that do not appear anywhere in the corpus. That
+took the revised criterion from 0 of 6 to 6 of 6 without affecting any of the
+questions my documents do answer. Checking the suggestion against my own data
+before implementing it saved me from building the wrong thing.
+
 <!-- ── Stretch features ─────────────────────────────────────────────────────
      Doing one? Say so here BEFORE you start. A feature this README never
      claims earns nothing.
@@ -790,9 +820,121 @@ name, but it is a real hole and it is in the docstring.
 
      Milestone 5. -->
 
+**No criterion is still missed.** All five as originally written are MET, and
+the one real miss I had — criterion 3 as revised — went from 0 of 6 to 6 of 6.
+That is not the same as nothing being left, and the rest of this section is
+what is left.
+
+**1. The gate is defeated by word order.** `unknown_proper_nouns` skips the
+first word of a question, because sentence position capitalises it and I did
+not want to lose every question that legitimately opens with a town name. So
+"Tokyo in November, what is it like?" passes at distance 0.550 with no unknown
+terms flagged. I verified this rather than assuming it.
+
+What I would do: part-of-speech tagging, or a check against a list of English
+sentence-opening words, so the first token can be tested like any other. I
+stopped because it needs a dependency or a word list I would have to build and
+tune, and this milestone allows one change.
+
+**2. Both tests are blind to the same question.** Distance catches a foreign
+subject; the proper-noun check catches a familiar frame around an absent
+entity. A question that is off-topic, contains no capitalised name, and borrows
+my corpus's phrasing would pass both. Two of the five original `OUT_OF_SCOPE`
+questions already have no proper noun — the diesel engine and the ibuprofen
+one — and they are caught only because their subject matter is foreign enough
+to score 0.881 and 0.835. I have not constructed a question that sits in the
+gap, so I do not know how wide it is. That is the most honest sentence in this
+section.
+
+**3. The system reports the contradiction but cannot resolve it.** I probed
+this two ways beyond my test question, and the conflict rule held even when a
+wrong chunk ranked first:
+
+```
+Q: does Marchwood have a hospital?
+   0.326 guide_accessibility.md     MARCHWOOD
+   0.381 guide_marchwood.md         BRIGHTWATER
+-> The documents disagree on the location of the nearest hospital. According to
+   guide_accessibility.md, the nearest full hospital is in Marchwood, while
+   guide_marchwood.md states that the nearest full hospital is in Brightwater,
+   noting that Marchwood only has a local minor injuries unit...
+```
+
+That is faithful reporting of both sources, and the second source is wrong —
+`guide_marchwood.md` is telling you the town it describes has no hospital, in a
+block of copy-pasted boilerplate that nine of my fourteen documents share. The
+user is handed two claims with equal weight and no way to pick. Presenting a
+demonstrably false claim as one side of a live disagreement is better than
+asserting it, but it is not good.
+
+What I would do: strip the repeated boilerplate at the loading stage, since
+`ingest.clean_text` already exists for exactly this and the block is
+byte-identical across nine files. I stopped because deleting corpus content is
+a bigger decision than it looks — the block also carries the cash and mobile
+coverage notes, which are the only place some of that information appears.
+
+**4. Ten of my 94 chunks answer nothing on their own.** These are the preamble
+chunks, the text above a guide's first `##` heading. It is the single failure
+in criterion 4's revised measurement and I predicted it in unit 1. Merging a
+preamble into the first real section, or into the document title, would fix it.
+I stopped because criterion 4 passes at 9 of 10 and my diagnosis pointed at the
+gate instead — fixing this would have been choosing the comfortable problem.
+
+**5. Criterion 5 rests on one question.** Three runs of one question is three
+samples of one retrieval result, not a measurement of how the system handles
+disagreement. The two extra phrasings above are informal; they are not in
+`questions.py` and not in the run log.
+
+**6. The second layer is one prompt edit from silent failure.** Anything the
+gate lets through is stopped only by `GROUNDING_INSTRUCTION`. I tested that it
+refuses the travel questions, but nothing measures it on every run, and a
+future edit to that string could remove the behaviour without any criterion
+noticing.
+
 ## What I'd Do Differently
 
 <!-- Knowing what you know now — which of your five criteria would you write
      differently, and why?
 
      Milestone 5. -->
+
+**All five, and for one reason: a criterion is only as good as the set of
+questions it is measured against.** Three of mine reported MET while testing
+nothing that was in doubt, and in every case the weakness was in the test set
+rather than in the sentence.
+
+**Criterion 3 is the one that taught me this.** I wrote "a question my
+documents clearly don't cover" and then measured it against Mongolia, diesel
+engines and Rust — questions so far from my corpus that they scored 0.808 to
+0.982 against a 0.75 cutoff. It reported 5 of 5 for two units. The moment I
+measured it against travel questions about other places, which are equally
+"clearly not covered", it reported 0 of 6. Same sentence, same system,
+opposite verdict. Next time I would pick the out-of-scope questions to be *as
+close as I can make them* to in-scope, because that is the only version of the
+test that can fail.
+
+**Criterion 2** I would write to be falsifiable in the first place. As
+originally worded my own code satisfied it, because `app.py` prints
+`Sources retrieved:` on every answer. I spotted that in unit 1 while writing
+the reason underneath and left it deliberately so the verdict would be honest,
+but the better move is not to write an unfalsifiable criterion at all. The test
+is: before running anything, describe what a failure would look like. If you
+cannot, the criterion is not measuring.
+
+**Criterion 4** I would not phrase as a judgement I make about my own work.
+"I can state a specific question that chunk answers" cannot be checked by
+anyone else, and "sampled with `app.py chunks -n 5`" turned out not to be a
+sample at all — it returns the same five chunks every time, so the criterion
+inspected 5 of my 94 chunks forever.
+
+**Criterion 1** I set at 4 of 5 anywhere in the top 5, and cleared it with the
+answer ranked first on all five questions. It had no headroom to detect
+anything. Top 3 at 5 of 5 would have been a real test.
+
+**Criterion 5** I would measure on more than one question. It is the criterion
+I care most about and the one with the smallest sample.
+
+The pattern across all five: I wrote targets I could defend rather than targets
+that could catch me out. The instruction in unit 1 said that setting a target
+you cannot miss costs you, and I read that as being about the number. It is
+about the test set.
