@@ -552,6 +552,100 @@ one in passing, so it is semantically closer despite being outnumbered.
 
      Milestone 3. -->
 
+**I missed nothing, and three of my five targets were set low.** Criterion 2
+could not fail as written, criterion 3 was measured against questions that were
+never near the cutoff, and criterion 4 inspected the same five chunks every
+time. I revised all three in `criteria.md` last milestone. Only criterion 1
+(5 of 5 against a target of 4) and criterion 5 were genuinely cleared.
+
+Revising criterion 3 turned it into a real miss, and that is what the rest of
+this section diagnoses. Revising criterion 4 did not: re-measured as 10 random
+chunks against two observable tests, it comes out **9 of 10 (MET)**, with the
+single failure being `guide_corry_vale.md#0`, a preamble chunk. That matches
+the 11 percent preamble rate I calculated, so the chunker is behaving as
+described and there is nothing to diagnose there.
+
+### Criterion 3 (revised) — MISSED, 0 of 6
+
+**Stage: embedding.** Not retrieval, and not the gate, though the gate is where
+it becomes visible.
+
+**Mechanism.** The embedding encodes the *shape* of a question far more
+strongly than the entities in it, so a question with an unfamiliar proper noun
+in a familiar frame lands close to my corpus even though nothing in the corpus
+is about it. I tested this by holding the sentence frame fixed and changing
+only the place name:
+
+| Question | Best distance | Top result |
+|---|---|---|
+| what is the best time to visit **Halden Bay**? | 0.2261 | `guide_halden_bay.md` |
+| what is the best time to visit **Brightwater**? | 0.3067 | `guide_brightwater.md` |
+| what is the best time to visit **Kestrelford**? | 0.3269 | `guide_kestrelford.md` |
+| what is the best time to visit **Ouagadougou**? | 0.6058 | `guide_seasons.md` |
+| what is the best time to visit **Reykjavik**? | 0.6208 | `guide_seasons.md` |
+| what is the best time to visit **Zurich**? | 0.6310 | `guide_halden_bay.md` |
+| what is the best time to visit **Tokyo**? | 0.6427 | `guide_halden_bay.md` |
+
+The four foreign cities land in a band of 0.037 — Ouagadougou, which appears
+nowhere in any travel guide I own, scores *better* than Tokyo. The place name
+is doing almost no work. What sets the floor at roughly 0.62 is the frame
+"what is the best time to visit ___", which matches the nine `When to go`
+sections my chunker produces. Swapping the name moves the distance by about
+0.3; the frame alone already puts the question under my 0.75 cutoff.
+
+Working backwards confirms the failure is before generation. For the Tokyo
+question all five retrieved chunks are `When to go` sections — `guide_halden_bay.md`,
+`guide_seasons.md` ×2, `guide_brightwater.md`, `guide_elder_ness.md` — and the
+word "Tokyo" appears in none of them. So generation was never given anything to
+answer from.
+
+**Why the gate cannot catch this.** `gate.py::check` sees a single number and
+compares it to a threshold. It has no way to tell "0.64 because the topic
+matches" from "0.64 because the sentence shape matches". Questions from
+genuinely different domains score 0.859 (Rust) and 0.982 (the World Cup)
+because their frames match nothing I have, which is why the original criterion
+reported 5 of 5 — it only ever tested frames my corpus has no counterpart for.
+
+**The pattern: this is one problem, not six.** All six travel questions I
+measured — Barcelona, Edinburgh, the Louvre, Paris, Tokyo, Heathrow — are the
+same failure. Each pairs a question frame my guides answer often (when to
+visit, how to get there, where to park, opening hours, is the bus cheaper) with
+a proper noun my guides have never heard of. There is no sixth diagnosis to
+write; there is one mechanism with six instances.
+
+It is also unfixable by moving the threshold, which is the part I want on the
+record. Legitimate vague questions about my own region score 0.609 to 0.722,
+and these score 0.575 to 0.643. **They overlap, so no cutoff separates them.**
+Lowering the threshold to 0.57 to exclude the Barcelona question would also
+refuse "where do locals eat rather than tourists?", which is a question my
+corpus answers well. The two layers currently divide the work: the gate stops
+questions whose frame is foreign, and `GROUNDING_INSTRUCTION` stops questions
+whose frame is familiar but whose subject is absent. I verified in unit 1 that
+the second layer refuses all six. That is a real defence, but it is one prompt
+instruction away from silently failing, and it costs a model call every time.
+
+### What I would tighten
+
+**Criterion 1**, from "the retrieved chunks include one that contains the
+answer" at 4 of 5, to **"the chunk containing the answer is in the top 3"** at
+5 of 5. I cleared the original with the answer ranked first on all five
+questions, so 4 of 5 anywhere in the top 5 was never going to test anything.
+
+**Criterion 5** is measured on one question asked three times, so it tests one
+retrieval result rather than the system's handling of disagreement. I went
+looking for a second contradiction to widen it with and mostly did not find
+one: the same boilerplate block repeats claims about cash and mobile coverage,
+but `guide_accessibility.md` never mentions cash at all, and on coverage it
+adds detail ("genuinely absent in parts of Corry Vale") rather than
+contradicting. The only clean conflict in the corpus is the hospital.
+
+So the honest tightening is not "more contradictions" but a harder version of
+the same one: the two documents that contradict *themselves* —
+`guide_brightwater.md` says the nearest full hospital is in Brightwater, and
+`guide_marchwood.md`, the town that actually has it, says the same. Asking
+"does Marchwood have a hospital?" puts that self-contradiction in front of the
+model directly, and I have never run it.
+
 ## The Improvement
 
 **What I changed:**
