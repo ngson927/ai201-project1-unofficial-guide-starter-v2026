@@ -49,6 +49,20 @@ chunk is labelled `[from <filename>]` in the prompt. So the file name is
 always available to the model. If an answer still comes back without one, the
 instruction is being ignored, and that is worth catching.
 
+> **Revised in unit 2:** Every answer the system produces names at least one
+> source document **in the answer text itself**, not counting the separate
+> `Sources retrieved:` line that `app.py` prints.
+>
+> **Why revised:** As originally written this criterion cannot fail. `app.py`
+> prints `Sources retrieved:` from the retrieval results on every answer it
+> ever produces, so read literally the criterion is satisfied by my own code
+> regardless of what the model does. A criterion that is true by construction
+> measures nothing. I spotted this in unit 1 while writing the reason
+> underneath it and deliberately left the original in place so the verdict
+> would be made against what I actually wrote. The measurement does not change
+> the result — 15 of 15 answers carry a filename in the body text as well — but
+> it changes whether a future failure would ever be visible.
+
 ---
 
 ## 3. The relevance gate stops out-of-corpus questions
@@ -74,6 +88,27 @@ three, and a question that happens to share vocabulary with my documents —
 "engine", say, against guides full of transport sections — could land closer
 than the gap suggests.
 
+> **Revised in unit 2:** When I ask a question my documents don't cover, the
+> gate stops it in at least 4 of 5 tries, measured against a set that includes
+> travel questions about places outside my region — not only questions from
+> unrelated domains.
+>
+> **Why revised:** The criterion says "a question my documents clearly don't
+> cover", but the set it is measured against is five questions about Mongolia,
+> diesel engines, the World Cup, ibuprofen and Rust. Those score 0.808 to
+> 0.982 and were never going to reach a 0.75 cutoff. The criterion therefore
+> reports 5 of 5 while testing nothing that was in doubt.
+>
+> "What is the best time to visit Tokyo?" is also a question my documents
+> clearly don't cover, and it scores 0.643. I measured six such questions in
+> unit 1 — Tokyo, Barcelona, Paris, Edinburgh, Heathrow, the Louvre — and they
+> land between 0.575 and 0.643, so **the gate refuses none of them.** Under the
+> plain meaning of the sentence that is 0 of 6, not 5 of 5.
+>
+> This raises the bar rather than lowering it, and I expect the revised version
+> to be MISSED. The unit 1 verdict above stands as MET, because it was made
+> against the set the original criterion named.
+
 ---
 
 ## 4. Chunks stand on their own
@@ -98,6 +133,28 @@ miss. This one I have not measured, and judging it means reading the chunk and
 deciding, which is the part I am least sure I can do consistently — if I score
 the same chunk differently twice, that is a finding about the criterion rather
 than about the chunker.
+
+> **Revised in unit 2:** For at least 8 of 10 chunks drawn at random from the
+> index, the chunk contains at least one complete sentence stating a fact, and
+> its first line names the town or document it belongs to.
+>
+> **Why revised:** Two problems, both about measurement rather than result.
+>
+> First, "sampled with `python app.py chunks -n 5`" is not a sample. I ran it
+> three times and it returns the same five chunks every time — it spreads
+> evenly across the corpus rather than drawing randomly. So the criterion
+> inspects 5 of my 94 chunks, always the same 5, and would keep reporting 4 of
+> 5 even if I broke the other 89. It measures five specific chunks, not the
+> chunker.
+>
+> Second, "I can state a specific question that chunk answers" is a judgement I
+> make about my own work, and in unit 1 I wrote that this was the part I was
+> least sure I could do consistently. The revised wording replaces it with two
+> things another person can check without asking me what I meant.
+>
+> The 8 of 10 is set against what I now know: preamble chunks — the text above
+> a guide's first `##` heading — are 10 of 94 chunks, or 11 percent, and they
+> are the ones that fail. A random draw of 10 should contain about one.
 
 
 

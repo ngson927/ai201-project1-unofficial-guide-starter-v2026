@@ -509,11 +509,28 @@ The documents disagree on the location of the nearest full hospital:
 
 | # | Criterion | Verdict | How I decided |
 |---|---|---|---|
-| 1 |  |  |  |
-| 2 |  |  |  |
-| 3 |  |  |  |
-| 4 |  |  |  |
-| 5 |  |  |  |
+| 1 | Retrieved chunks contain the answer | MET | Target was 4 of 5; got 5 of 5 in all three runs, checked strictly by confirming the `expects` string sits inside a retrieved chunk rather than just that the right file came back. |
+| 2 | Every answer names a source | MET | 15 of 15 answers across three runs contain a `guide_*.md` filename in the answer body, not only in the `Sources retrieved:` line that `app.py` prints. Met under the strict reading as well as the loose one — but see the revision. |
+| 3 | Gate stops out-of-corpus questions | MET | Target was 4 of 5; the gate refused all five `OUT_OF_SCOPE` questions at distances 0.808–0.982, well clear of the 0.75 cutoff. Met against the set the criterion names — but see the revision. |
+| 4 | Chunks stand on their own | MET | Exactly at target, 4 of 5. The preamble chunk `guide_accessibility.md#0` answers nothing on its own and I scored it a fail, as I predicted I would last unit. The other four each answer a question unaided. |
+| 5 | Contradictions surfaced | MET | The hospital question named both sides and all five documents in all three runs. Worth stating plainly: it only passes because I changed `GROUNDING_INSTRUCTION` in unit 1 after writing the criterion. Before that change the same question returned a single confident citation. |
+
+**Three of these are more comfortable than they should be, and I want that on
+the record before the revisions below.** Criterion 2 cannot fail as written.
+Criterion 3 passes against a set of questions that was never going to be hard.
+Criterion 4 measures the same five chunks forever. None of those is a result I
+earned; they are all artefacts of how I wrote the criterion. The verdicts above
+stand as MET because that is what the targets say, and a target I hit does not
+get moved. The revisions in `criteria.md` fix the measurement for next time,
+and two of the three make the criterion strictly harder.
+
+The one number that genuinely surprised me was criterion 1 at 5 of 5. I
+targeted 4 of 5 and named the hospital question as the one I expected to lose,
+because nine chunks in my corpus carry the wrong claim and one carries the
+right one. It retrieved first at 0.4073. My reasoning was that duplication
+would crowd out the correct chunk; what I had not accounted for is that the
+correct chunk is *about* hospitals in detail while the nine duplicates mention
+one in passing, so it is semantically closer despite being outnumbered.
 
 ## Diagnoses
 
